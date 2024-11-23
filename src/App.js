@@ -1,89 +1,172 @@
-import React, { useState, useEffect } from 'react';
-import './App.css';
+import React, { useState, useEffect } from "react";
 
-function App() {
-    const [userId, setUserId] = useState('');
-    const [message, setMessage] = useState('');
-    const [messages, setMessages] = useState([]);
-    const [socket, setSocket] = useState(null);
-    const [receiverId, setReceiverId] = useState(''); // ID of the user we're chatting with
+const ChatApp = () => {
+        const [username, setUsername] = useState(""); // State for the username
+        const [messages, setMessages] = useState([]);
+        const [socket, setSocket] = useState(null);
+        const [inputMessage, setInputMessage] = useState("");
+        const [isConnected, setIsConnected] = useState(false);
+        const [isUsernameSet, setIsUsernameSet] = useState(false); // State to check if username is set
 
-    useEffect(() => {
-        // Only connect to WebSocket if userId is set
-        if (userId) {
-            const ws = new WebSocket('wss://aancyg26cf.execute-api.us-east-1.amazonaws.com/production/');
-            ws.onopen = () => console.log('Connected to WebSocket');
-            ws.onmessage = (event) => {
-                const newMessage = JSON.parse(event.data);
-                setMessages((prevMessages) => [...prevMessages, newMessage]);
-            };
-            ws.onclose = () => console.log('WebSocket closed');
-            setSocket(ws);
+        useEffect(() => {
+            if (isUsernameSet) {
+                // Initialize WebSocket
+                const ws = new WebSocket(
+                    "wss://aancyg26cf.execute-api.us-east-1.amazonaws.com/production"
+                );
+                setSocket(ws);
 
-            // Cleanup on unmount
-            return () => ws.close();
-        }
-    }, [userId]);
+                // WebSocket open event
+                ws.onopen = () => {
+                    console.log("WebSocket connection established.");
+                    setIsConnected(true);
+                };
 
-    // Handle setting userId
-    const handleSetUserId = () => {
-        // Ask for userId only once
-        if (!userId) {
-            const inputUserId = prompt('Enter your User ID:');
-            if (inputUserId) setUserId(inputUserId);
-        }
-    };
+                // WebSocket message event
+                ws.onmessage = (event) => {
+                    const messageData = JSON.parse(event.data);
 
-    // Function to send message
-    const handleSendMessage = () => {
-        if (socket && receiverId) {
-            const messageData = {
-                action: 'sendMessage',
-                senderId: userId,
-                receiverId: receiverId,
-                content: message,
-            };
-            socket.send(JSON.stringify(messageData));
-            setMessages([...messages, { senderId: userId, message: message }]);
-            setMessage('');
-        }
-    };
+                    // Update messages state with the new message
+                    setMessages((prevMessages) => [...prevMessages, messageData]);
+                };
 
-    return ( <
-        div className = "app-container" >
-        <
-        h1 > Real - Time Chat < /h1> <
-        button onClick = { handleSetUserId } > Set User ID < /button> <
-        input type = "text"
-        placeholder = "Enter receiver ID"
-        value = { receiverId }
-        onChange = {
-            (e) => setReceiverId(e.target.value)
-        }
-        /> <
-        div className = "message-input-container" >
-        <
-        input type = "text"
-        value = { message }
-        onChange = {
-            (e) => setMessage(e.target.value)
-        }
-        placeholder = "Type a message" /
-        >
-        <
-        button onClick = { handleSendMessage } > Send < /button> < /
-        div > <
-        ul > {
-            messages.map((msg, index) => ( <
-                li key = { index } >
+                // WebSocket error event
+                ws.onerror = (error) => {
+                    console.error("WebSocket error:", error);
+                };
+
+                // WebSocket close event
+                ws.onclose = () => {
+                    console.log("WebSocket connection closed.");
+                    setIsConnected(false);
+                };
+
+                // Cleanup WebSocket on component unmount
+                return () => {
+                    ws.close();
+                };
+            }
+        }, [isUsernameSet]);
+
+        const handleSetUsername = () => {
+            if (username.trim() !== "") {
+                setIsUsernameSet(true);
+            }
+        };
+
+        const sendMessage = () => {
+            if (socket && socket.readyState === WebSocket.OPEN && inputMessage.trim() !== "") {
+                const message = {
+                    action: "sendMessage",
+                    senderId: username, // Use the specified username
+                    receiverId: "user2", // Update as needed
+                    content: inputMessage,
+                };
+
+                socket.send(JSON.stringify(message));
+                setInputMessage(""); // Clear the input box
+            } else {
+                console.error("WebSocket is not connected or message is empty.");
+            }
+        };
+
+        if (!isUsernameSet) {
+            return ( <
+                div style = { styles.container } >
                 <
-                strong > { msg.senderId === userId ? 'You' : msg.senderId }: < /strong> {msg.message} < /
-                li >
-            ))
-        } <
-        /ul> < /
-        div >
-    );
-}
+                h1 > Chat App < /h1> <
+                div style = { styles.usernameContainer } >
+                <
+                input type = "text"
+                placeholder = "Enter your username..."
+                value = { username }
+                onChange = {
+                    (e) => setUsername(e.target.value) }
+                style = { styles.input }
+                /> <
+                button onClick = { handleSetUsername }
+                style = { styles.button } >
+                Set Username <
+                /button> <
+                /div> <
+                /div>
+            );
+        }
 
-export default App;
+        return ( <
+            div style = { styles.container } >
+            <
+            h1 > Chat App < /h1> <
+            div style = { styles.chatBox } > {
+                messages.map((msg, index) => ( <
+                    div key = { index }
+                    style = { styles.message } >
+                    <
+                    strong > { msg.senderId }: < /strong> {msg.content} <
+                    /div>
+                ))
+            } <
+            /div> <
+            div style = { styles.inputContainer } >
+            <
+            input type = "text"
+            placeholder = "Type your message here..."
+            value = { inputMessage }
+            onChange = {
+                (e) => setInputMessage(e.target.value) }
+            style = { styles.input }
+            /> <
+            button onClick = { sendMessage }
+            style = { styles.button } >
+            Send <
+            /button> <
+            /div> {
+                !isConnected && < p style = {
+                        { color: "red" } } > Connecting to WebSocket... < /p>} <
+                    /div>
+            );
+        };
+
+        // Inline styles
+        const styles = {
+            container: {
+                padding: "20px",
+                fontFamily: "Arial, sans-serif",
+            },
+            chatBox: {
+                border: "1px solid #ccc",
+                borderRadius: "5px",
+                padding: "10px",
+                height: "300px",
+                overflowY: "auto",
+                marginBottom: "10px",
+            },
+            message: {
+                marginBottom: "5px",
+            },
+            inputContainer: {
+                display: "flex",
+                gap: "10px",
+            },
+            input: {
+                flex: 1,
+                padding: "10px",
+                borderRadius: "5px",
+                border: "1px solid #ccc",
+            },
+            button: {
+                padding: "10px 20px",
+                backgroundColor: "#007bff",
+                color: "white",
+                border: "none",
+                borderRadius: "5px",
+                cursor: "pointer",
+            },
+            usernameContainer: {
+                display: "flex",
+                gap: "10px",
+                marginBottom: "20px",
+            },
+        };
+
+        export default ChatApp;
